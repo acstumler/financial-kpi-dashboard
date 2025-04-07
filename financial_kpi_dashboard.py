@@ -5,6 +5,7 @@ from io import BytesIO
 from datetime import datetime
 import openai
 import os
+from fpdf import FPDF
 
 st.set_page_config(page_title="📊 Financial KPI Dashboard", layout="wide")
 
@@ -109,6 +110,24 @@ def calculate_kpis(gl_data, pnl_data, bs_data):
     }
     return kpis
 
+# --- PDF Summary Export ---
+def generate_pdf_summary(kpis):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=14)
+    pdf.cell(200, 10, txt="Financial KPI Summary Report", ln=1, align='C')
+    pdf.set_font("Arial", size=12)
+    pdf.ln(10)
+
+    for metric, value in kpis.items():
+        val = f"{value:.2%}" if "Margin" in metric or "Ratio" in metric or "Return" in metric else f"${value:,.2f}"
+        pdf.cell(200, 10, txt=f"{metric}: {val}", ln=1)
+
+    buffer = BytesIO()
+    pdf.output(buffer)
+    buffer.seek(0)
+    return buffer
+
 if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
     kpis = calculate_kpis(gl_data, pnl_data, bs_data)
 
@@ -119,7 +138,6 @@ if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
         else:
             st.metric(metric, f"${value:,.2f}")
 
-    # --- Export KPIs ---
     @st.cache_data
     def export_kpis_to_excel(kpis):
         df = pd.DataFrame(kpis.items(), columns=["Metric", "Value"])
@@ -130,13 +148,20 @@ if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
 
     kpi_excel = export_kpis_to_excel(kpis)
     st.download_button(
-        label="📥 Download KPI Report",
+        label="📥 Download KPI Excel Report",
         data=kpi_excel,
         file_name="financial_kpis.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-    # --- GPT Q&A ---
+    kpi_pdf = generate_pdf_summary(kpis)
+    st.download_button(
+        label="📄 Download KPI PDF Report",
+        data=kpi_pdf,
+        file_name="financial_kpis_summary.pdf",
+        mime="application/pdf"
+    )
+
     api_key = st.secrets["OPENAI_API_KEY"] if "OPENAI_API_KEY" in st.secrets else os.getenv("OPENAI_API_KEY")
 
     if api_key:
@@ -163,4 +188,3 @@ if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
         st.warning("🔑 OpenAI API key not found. Please set it in .streamlit/secrets.toml or environment variable.")
 else:
     st.info("📤 Upload one or more Excel files (GL, P&L, or BS) to begin analysis.")
-
