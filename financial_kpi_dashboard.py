@@ -7,8 +7,28 @@ import openai
 import os
 from fpdf import FPDF
 
-st.set_page_config(page_title="📊 Financial KPI Dashboard", layout="wide")
-st.title("📊 Financial KPI Dashboard")
+st.set_page_config(page_title="NovaFi - Financial Insights", layout="wide")
+st.markdown("""
+    <style>
+        body {
+            background-color: #f7f2ed;
+        }
+        .stApp {
+            font-family: 'Segoe UI', sans-serif;
+        }
+        h1 {
+            color: #50394c;
+            font-size: 3em;
+        }
+        .metric-label {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("✨ NovaFi")
+st.subheader("Financial Insights Dashboard")
 
 # --- File Upload ---
 uploaded_files = st.file_uploader("Upload your financial statements (GL, P&L, BS - Excel format)", type=["xlsx"], accept_multiple_files=True)
@@ -82,7 +102,6 @@ def calculate_kpis(gl_data, pnl_data, bs_data):
     }
     return kpis
 
-# --- PDF Generator ---
 def generate_pdf_summary(kpis):
     pdf = FPDF()
     pdf.add_page()
@@ -90,11 +109,9 @@ def generate_pdf_summary(kpis):
     pdf.cell(200, 10, txt="Financial KPI Summary Report", ln=1, align='C')
     pdf.set_font("Arial", size=12)
     pdf.ln(10)
-
     for metric, value in kpis.items():
         val = f"{value:.2%}" if "Margin" in metric or "Ratio" in metric or "Return" in metric else f"${value:,.2f}"
         pdf.cell(200, 10, txt=f"{metric}: {val}", ln=1)
-
     pdf_output = pdf.output(dest='S').encode('latin1')
     return BytesIO(pdf_output)
 
@@ -127,9 +144,9 @@ if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
 
     kpi_pdf = generate_pdf_summary(kpis)
     st.download_button(
-        label="📄 Download KPI PDF Report",
+        label="📄 Download KPI Summary (PDF)",
         data=kpi_pdf,
-        file_name="financial_kpis.pdf",
+        file_name="financial_kpis_summary.pdf",
         mime="application/pdf"
     )
 
