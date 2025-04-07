@@ -1,57 +1,43 @@
 import streamlit as st
+st.set_page_config(page_title="NovaFi | Financial Insights Dashboard", layout="wide")
+
 import pandas as pd
 import numpy as np
 from io import BytesIO
 from datetime import datetime
-import openai
-import os
 from fpdf import FPDF
+import os
 
-# Apply custom styling with a retro 60s Southwestern theme
-st.markdown(
-    """
+# --- NovaFi Branding ---
+st.markdown("""
     <style>
-        body {
-            background-color: #f2e1c2;
-            font-family: 'Georgia', serif;
+        @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Unica+One&display=swap');
+
+        html, body, [class*="css"]  {
+            font-family: 'Unica One', sans-serif;
+            background-color: #f4e2c2;
+            color: #234f43;
         }
-        h1, h2, h3, h4, h5, h6 {
-            color: #9a3412;
-            font-family: 'Georgia', serif;
-        }
-        .stButton>button {
-            background-color: #ba4a00;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 0.5em 1em;
-        }
-        .stDownloadButton button {
-            background-color: #1b5e20;
-            color: white;
-        }
-        .reportview-container .markdown-text-container {
+
+        .reportview-container .main .block-container{
             padding-top: 2rem;
+            padding-right: 2rem;
+            padding-left: 2rem;
+            padding-bottom: 2rem;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Archivo Black', sans-serif;
+            color: #ba4a1e;
         }
     </style>
-    """,
-    unsafe_allow_html=True
-)
+""", unsafe_allow_html=True)
 
-# --- Page Configuration ---
-st.set_page_config(page_title="NovaFi | Financial Insights Dashboard", layout="wide")
-
-# --- Logo and Title ---
-col1, col2 = st.columns([1, 8])
-with col1:
-    st.image("NovaFi.png", width=150)
-with col2:
-    st.title("✨ NovaFi | Financial Insights Dashboard")
+st.image("NovaFi.png", width=150)
+st.title("✨ NovaFi | Financial Insights Dashboard")
 
 # --- File Upload ---
-st.subheader("📂 Upload Your Financial Statements")
-st.caption("Upload your financial statements (GL, P&L, BS - Excel format)")
-uploaded_files = st.file_uploader("Upload GL, P&L, or Balance Sheet files", type=["xlsx"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("Upload your financial statements (GL, P&L, BS - Excel format)", type=["xlsx"], accept_multiple_files=True)
 
 gl_data = pd.DataFrame()
 pnl_data = pd.DataFrame()
@@ -80,8 +66,6 @@ if uploaded_files:
 
 # --- KPI Calculations ---
 def calculate_kpis(gl_data, pnl_data, bs_data):
-    kpis = {}
-
     if not gl_data.empty:
         total_revenue = gl_data[gl_data['Account'].str.contains("Income", case=False)]['Amount'].sum()
         total_expenses = gl_data[gl_data['Account'].str.contains("Expense|Cost of Goods Sold", case=False)]['Amount'].sum()
@@ -105,7 +89,7 @@ def calculate_kpis(gl_data, pnl_data, bs_data):
     current_assets = bs_data[bs_data['Account'].str.contains("Current Assets", case=False)]['Amount'].sum() if not bs_data.empty else 0
     current_liabilities = bs_data[bs_data['Account'].str.contains("Current Liabilities", case=False)]['Amount'].sum() if not bs_data.empty else 0
 
-    kpis = {
+    return {
         "Total Revenue": total_revenue,
         "Total Expenses": total_expenses,
         "Net Income": net_income,
@@ -120,8 +104,22 @@ def calculate_kpis(gl_data, pnl_data, bs_data):
         "Return on Equity (ROE)": net_income / total_equity if total_equity else 0,
         "Return on Assets (ROA)": net_income / total_assets if total_assets else 0
     }
-    return kpis
 
+# --- Generate PDF ---
+def generate_pdf_summary(kpis):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=14)
+    pdf.cell(200, 10, txt="NovaFi KPI Summary Report", ln=1, align='C')
+    pdf.set_font("Arial", size=12)
+    pdf.ln(10)
+    for metric, value in kpis.items():
+        val = f"{value:.2%}" if "Margin" in metric or "Ratio" in metric or "Return" in metric else f"${value:,.2f}"
+        pdf.cell(200, 10, txt=f"{metric}: {val}", ln=1)
+    pdf_output = pdf.output(dest='S').encode('latin1')
+    return BytesIO(pdf_output)
+
+# --- Display Results ---
 if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
     kpis = calculate_kpis(gl_data, pnl_data, bs_data)
 
@@ -132,46 +130,7 @@ if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
         else:
             st.metric(metric, f"${value:,.2f}")
 
-    @st.cache_data
-    def export_kpis_to_excel(kpis):
-        df = pd.DataFrame(kpis.items(), columns=["Metric", "Value"])
-        output = BytesIO()
-        df.to_excel(output, index=False, engine='openpyxl')
-        output.seek(0)
-        return output
-
-    kpi_excel = export_kpis_to_excel(kpis)
-    st.download_button(
-        label="📥 Download KPI Report",
-        data=kpi_excel,
-        file_name="financial_kpis.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-    # --- PDF Summary Report ---
-    def generate_pdf_summary(kpis):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=14)
-        pdf.cell(200, 10, txt="NovaFi KPI Summary Report", ln=1, align='C')
-        pdf.set_font("Arial", size=12)
-        pdf.ln(10)
-
-        for metric, value in kpis.items():
-            val = f"{value:.2%}" if "Margin" in metric or "Ratio" in metric or "Return" in metric else f"${value:,.2f}"
-            pdf.cell(200, 10, txt=f"{metric}: {val}", ln=1)
-
-        pdf_output = pdf.output(dest='S').encode('latin1')
-        return BytesIO(pdf_output)
-
     kpi_pdf = generate_pdf_summary(kpis)
-    st.download_button(
-        label="📄 Download KPI Report (PDF)",
-        data=kpi_pdf,
-        file_name="financial_kpis.pdf",
-        mime="application/pdf"
-    )
-
+    st.download_button("📄 Download KPI Report as PDF", data=kpi_pdf, file_name="kpi_report.pdf", mime="application/pdf")
 else:
     st.info("📤 Upload one or more Excel files (GL, P&L, or BS) to begin analysis.")
-
