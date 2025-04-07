@@ -8,38 +8,10 @@ import os
 from fpdf import FPDF
 
 st.set_page_config(page_title="📊 Financial KPI Dashboard", layout="wide")
-
-# --- Custom Styling ---
-st.markdown("""
-    <style>
-        .main-title {
-            font-size: 3em;
-            font-weight: bold;
-            color: #4CAF50;
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        .subtitle {
-            font-size: 1.2em;
-            color: #666;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .section-title {
-            font-size: 1.5em;
-            font-weight: 600;
-            margin-top: 30px;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-st.markdown('<div class="main-title">📊 Financial KPI Dashboard</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Easily analyze financial statements and generate smart insights for small businesses, CFOs, and tax professionals.</div>', unsafe_allow_html=True)
+st.title("📊 Financial KPI Dashboard")
 
 # --- File Upload ---
-st.markdown('<div class="section-title">📁 Upload Your Financial Statements</div>', unsafe_allow_html=True)
-
-uploaded_files = st.file_uploader("Upload GL, P&L, or Balance Sheet files", type=["xlsx"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("Upload your financial statements (GL, P&L, BS - Excel format)", type=["xlsx"], accept_multiple_files=True)
 
 gl_data = pd.DataFrame()
 pnl_data = pd.DataFrame()
@@ -110,7 +82,7 @@ def calculate_kpis(gl_data, pnl_data, bs_data):
     }
     return kpis
 
-# --- PDF Summary Export ---
+# --- PDF Generator ---
 def generate_pdf_summary(kpis):
     pdf = FPDF()
     pdf.add_page()
@@ -123,21 +95,20 @@ def generate_pdf_summary(kpis):
         val = f"{value:.2%}" if "Margin" in metric or "Ratio" in metric or "Return" in metric else f"${value:,.2f}"
         pdf.cell(200, 10, txt=f"{metric}: {val}", ln=1)
 
-    buffer = BytesIO()
-    pdf.output(buffer)
-    buffer.seek(0)
-    return buffer
+    pdf_output = pdf.output(dest='S').encode('latin1')
+    return BytesIO(pdf_output)
 
 if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
     kpis = calculate_kpis(gl_data, pnl_data, bs_data)
 
-    st.markdown('<div class="section-title">📈 Key Financial Metrics</div>', unsafe_allow_html=True)
+    st.subheader("📈 Key Financial Metrics")
     for metric, value in kpis.items():
         if "Margin" in metric or "Ratio" in metric or "Return" in metric:
             st.metric(metric, f"{value:.2%}")
         else:
             st.metric(metric, f"${value:,.2f}")
 
+    # --- Export KPIs ---
     @st.cache_data
     def export_kpis_to_excel(kpis):
         df = pd.DataFrame(kpis.items(), columns=["Metric", "Value"])
@@ -148,7 +119,7 @@ if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
 
     kpi_excel = export_kpis_to_excel(kpis)
     st.download_button(
-        label="📥 Download KPI Excel Report",
+        label="📥 Download KPI Report (Excel)",
         data=kpi_excel,
         file_name="financial_kpis.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -158,15 +129,16 @@ if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
     st.download_button(
         label="📄 Download KPI PDF Report",
         data=kpi_pdf,
-        file_name="financial_kpis_summary.pdf",
+        file_name="financial_kpis.pdf",
         mime="application/pdf"
     )
 
+    # --- GPT Q&A ---
     api_key = st.secrets["OPENAI_API_KEY"] if "OPENAI_API_KEY" in st.secrets else os.getenv("OPENAI_API_KEY")
 
     if api_key:
         openai.api_key = api_key
-        st.markdown('<div class="section-title">💬 Ask a Question About Your Financial KPIs</div>', unsafe_allow_html=True)
+        st.subheader("💬 Ask a question about your financial KPIs")
         user_question = st.text_input("Enter your question:")
 
         if user_question:
