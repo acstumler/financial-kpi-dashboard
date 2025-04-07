@@ -6,30 +6,37 @@ from datetime import datetime
 import openai
 import os
 
-# Set up page with improved layout
 st.set_page_config(page_title="📊 Financial KPI Dashboard", layout="wide")
 
-with st.container():
-    st.markdown("""
-        <style>
-        .main {background-color: #f8f9fa;}
-        .block-container {padding-top: 2rem; padding-bottom: 2rem;}
-        h1, h2, h3, h4 {color: #1f4e79;}
-        .stMetric {padding: 1rem; background-color: #ffffff; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);}
-        </style>
-    """, unsafe_allow_html=True)
+# --- Custom Styling ---
+st.markdown("""
+    <style>
+        .main-title {
+            font-size: 3em;
+            font-weight: bold;
+            color: #4CAF50;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            font-size: 1.2em;
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section-title {
+            font-size: 1.5em;
+            font-weight: 600;
+            margin-top: 30px;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-    st.title("📊 Financial KPI Dashboard")
-    st.caption("Easily analyze financial statements and generate smart insights for small businesses, CFOs, and tax professionals.")
+st.markdown('<div class="main-title">📊 Financial KPI Dashboard</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Easily analyze financial statements and generate smart insights for small businesses, CFOs, and tax professionals.</div>', unsafe_allow_html=True)
 
-# --- File Upload Section ---
-st.subheader("📁 Upload Your Financial Statements")
-with st.expander("Upload Instructions", expanded=False):
-    st.markdown("""
-    - Upload Excel exports from your accounting software (GL, Profit & Loss, Balance Sheet)
-    - We support multiple uploads at once
-    - Files must include account names and amounts, and optionally dates
-    """)
+# --- File Upload ---
+st.markdown('<div class="section-title">📁 Upload Your Financial Statements</div>', unsafe_allow_html=True)
 
 uploaded_files = st.file_uploader("Upload GL, P&L, or Balance Sheet files", type=["xlsx"], accept_multiple_files=True)
 
@@ -89,7 +96,6 @@ def calculate_kpis(gl_data, pnl_data, bs_data):
         "Total Revenue": total_revenue,
         "Total Expenses": total_expenses,
         "Net Income": net_income,
-        "Gross Profit": gross_profit,
         "Gross Margin": gross_margin,
         "Net Margin": net_margin,
         "Total Assets": total_assets,
@@ -103,17 +109,15 @@ def calculate_kpis(gl_data, pnl_data, bs_data):
     }
     return kpis
 
-# --- KPI Display ---
 if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
-    st.subheader("📈 Key Financial Metrics")
     kpis = calculate_kpis(gl_data, pnl_data, bs_data)
-    kpi_cols = st.columns(3)
-    for i, (metric, value) in enumerate(kpis.items()):
-        with kpi_cols[i % 3]:
-            if "Margin" in metric or "Ratio" in metric or "Return" in metric:
-                st.metric(metric, f"{value:.2%}")
-            else:
-                st.metric(metric, f"${value:,.2f}")
+
+    st.markdown('<div class="section-title">📈 Key Financial Metrics</div>', unsafe_allow_html=True)
+    for metric, value in kpis.items():
+        if "Margin" in metric or "Ratio" in metric or "Return" in metric:
+            st.metric(metric, f"{value:.2%}")
+        else:
+            st.metric(metric, f"${value:,.2f}")
 
     # --- Export KPIs ---
     @st.cache_data
@@ -124,22 +128,21 @@ if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
         output.seek(0)
         return output
 
-    st.divider()
+    kpi_excel = export_kpis_to_excel(kpis)
     st.download_button(
         label="📥 Download KPI Report",
-        data=export_kpis_to_excel(kpis),
+        data=kpi_excel,
         file_name="financial_kpis.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
     # --- GPT Q&A ---
-    st.divider()
     api_key = st.secrets["OPENAI_API_KEY"] if "OPENAI_API_KEY" in st.secrets else os.getenv("OPENAI_API_KEY")
 
     if api_key:
         openai.api_key = api_key
-        st.subheader("🤖 Ask a Financial Analyst (AI)")
-        user_question = st.text_input("Type your question:")
+        st.markdown('<div class="section-title">💬 Ask a Question About Your Financial KPIs</div>', unsafe_allow_html=True)
+        user_question = st.text_input("Enter your question:")
 
         if user_question:
             try:
@@ -159,4 +162,5 @@ if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
     else:
         st.warning("🔑 OpenAI API key not found. Please set it in .streamlit/secrets.toml or environment variable.")
 else:
-    st.info("📤 Upload GL, P&L, or Balance Sheet Excel files to begin.")
+    st.info("📤 Upload one or more Excel files (GL, P&L, or BS) to begin analysis.")
+
