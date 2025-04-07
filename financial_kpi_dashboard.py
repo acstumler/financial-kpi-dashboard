@@ -4,54 +4,50 @@ import numpy as np
 from io import BytesIO
 from datetime import datetime
 from fpdf import FPDF
-import base64
+import openai
 import os
 
-# Set custom retro style
-st.set_page_config(page_title="NovaFi - Financial Insights Dashboard", layout="wide")
+st.set_page_config(
+    page_title="NovaFi | Financial Insights",
+    layout="wide",
+    page_icon="✨"
+)
 
-custom_css = """
-<style>
-body {
-    background-color: #f4e1c1;
-    color: #30594b;
-    font-family: 'Georgia', serif;
-}
-h1, h2, h3, .stTitle, .stMarkdown h1 {
-    color: #a63921;
-    font-family: 'Georgia', serif;
-}
-.st-emotion-cache-1v0mbdj p, .st-emotion-cache-1629p8f p {
-    font-size: 18px;
-    font-family: 'Georgia', serif;
-}
-button, .stDownloadButton button {
-    background-color: #30594b;
-    color: white;
-    border-radius: 0px;
-    border: none;
-}
-button:hover {
-    background-color: #a63921;
-}
-</style>
-"""
+# --- Custom Styling ---
+with open("NovaFi.png", "rb") as f:
+    logo_bytes = f.read()
 
-st.markdown(custom_css, unsafe_allow_html=True)
-
-# Logo and title
-st.image("NovaFi.png", width=160)
 st.markdown("""
-## NovaFi  
-### Financial Insights Dashboard
-Easily analyze financial statements and generate smart insights for small businesses, CFOs, and tax professionals.
-""")
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600&display=swap');
 
-# File Upload Section
-st.markdown("### 📁 Upload Your Financial Statements")
-uploaded_files = st.file_uploader("Upload GL, P&L, or Balance Sheet Excel files", type=["xlsx"], accept_multiple_files=True)
+    html, body, [class*="css"]  {
+        font-family: 'Quicksand', sans-serif;
+        background-color: #fef8f2;
+        color: #3b2f2f;
+    }
 
-# Data placeholders
+    .stApp {
+        padding: 2rem;
+    }
+
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.image(logo_bytes, width=250)
+st.title("✨ NovaFi | Financial Insights Dashboard")
+
+# --- File Upload ---
+uploaded_files = st.file_uploader(
+    "Upload your financial statements (GL, P&L, BS - Excel format)",
+    type=["xlsx"],
+    accept_multiple_files=True
+)
+
 gl_data = pd.DataFrame()
 pnl_data = pd.DataFrame()
 bs_data = pd.DataFrame()
@@ -77,8 +73,10 @@ if uploaded_files:
         except Exception as e:
             st.error(f"❌ Error processing {file.name}: {e}")
 
-# KPI Calculations
+# --- KPI Calculations ---
 def calculate_kpis(gl_data, pnl_data, bs_data):
+    kpis = {}
+
     if not gl_data.empty:
         total_revenue = gl_data[gl_data['Account'].str.contains("Income", case=False)]['Amount'].sum()
         total_expenses = gl_data[gl_data['Account'].str.contains("Expense|Cost of Goods Sold", case=False)]['Amount'].sum()
@@ -102,7 +100,7 @@ def calculate_kpis(gl_data, pnl_data, bs_data):
     current_assets = bs_data[bs_data['Account'].str.contains("Current Assets", case=False)]['Amount'].sum() if not bs_data.empty else 0
     current_liabilities = bs_data[bs_data['Account'].str.contains("Current Liabilities", case=False)]['Amount'].sum() if not bs_data.empty else 0
 
-    return {
+    kpis = {
         "Total Revenue": total_revenue,
         "Total Expenses": total_expenses,
         "Net Income": net_income,
@@ -117,15 +115,19 @@ def calculate_kpis(gl_data, pnl_data, bs_data):
         "Return on Equity (ROE)": net_income / total_equity if total_equity else 0,
         "Return on Assets (ROA)": net_income / total_assets if total_assets else 0
     }
+    return kpis
 
 if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
     kpis = calculate_kpis(gl_data, pnl_data, bs_data)
 
-    st.markdown("### 📊 Key Financial Metrics")
+    st.subheader("📈 Key Financial Metrics")
     for metric, value in kpis.items():
-        display_val = f"{value:.2%}" if "Margin" in metric or "Ratio" in metric or "Return" in metric else f"${value:,.2f}"
-        st.metric(label=metric, value=display_val)
+        if "Margin" in metric or "Ratio" in metric or "Return" in metric:
+            st.metric(metric, f"{value:.2%}")
+        else:
+            st.metric(metric, f"${value:,.2f}")
 
+    # --- Export KPIs ---
     @st.cache_data
     def export_kpis_to_excel(kpis):
         df = pd.DataFrame(kpis.items(), columns=["Metric", "Value"])
@@ -136,10 +138,59 @@ if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
 
     kpi_excel = export_kpis_to_excel(kpis)
     st.download_button(
-        label="📥 Download KPI Report",
+        label="📥 Download KPI Report (Excel)",
         data=kpi_excel,
         file_name="financial_kpis.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+    def generate_pdf_summary(kpis):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=14)
+        pdf.cell(200, 10, txt="Financial KPI Summary Report", ln=1, align='C')
+        pdf.set_font("Arial", size=12)
+        pdf.ln(10)
+
+        for metric, value in kpis.items():
+            val = f"{value:.2%}" if "Margin" in metric or "Ratio" in metric or "Return" in metric else f"${value:,.2f}"
+            pdf.cell(200, 10, txt=f"{metric}: {val}", ln=1)
+
+        pdf_output = pdf.output(dest='S').encode('latin1')
+        return BytesIO(pdf_output)
+
+    kpi_pdf = generate_pdf_summary(kpis)
+    st.download_button(
+        label="📥 Download KPI Summary (PDF)",
+        data=kpi_pdf,
+        file_name="kpi_summary.pdf",
+        mime="application/pdf"
+    )
+
+    # --- GPT Q&A ---
+    api_key = st.secrets["OPENAI_API_KEY"] if "OPENAI_API_KEY" in st.secrets else os.getenv("OPENAI_API_KEY")
+
+    if api_key:
+        openai.api_key = api_key
+        st.subheader("💬 Ask a question about your financial KPIs")
+        user_question = st.text_input("Enter your question:")
+
+        if user_question:
+            try:
+                prompt = "You are a financial analyst. Based on the following KPI data, answer the user's question:\n"
+                for metric, value in kpis.items():
+                    prompt += f"{metric}: {value}\n"
+                prompt += f"\nQuestion: {user_question}\nAnswer:"
+
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                answer = response['choices'][0]['message']['content']
+                st.success(answer)
+            except Exception as e:
+                st.error(f"❌ GPT Error: {e}")
+    else:
+        st.warning("🔑 OpenAI API key not found. Please set it in .streamlit/secrets.toml or environment variable.")
 else:
     st.info("📤 Upload one or more Excel files (GL, P&L, or BS) to begin analysis.")
