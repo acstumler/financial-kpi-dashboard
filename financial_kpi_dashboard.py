@@ -3,50 +3,55 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 from datetime import datetime
-from fpdf import FPDF
 import openai
 import os
+from fpdf import FPDF
 
-st.set_page_config(
-    page_title="NovaFi | Financial Insights",
-    layout="wide",
-    page_icon="✨"
+# Apply custom styling with a retro 60s Southwestern theme
+st.markdown(
+    """
+    <style>
+        body {
+            background-color: #f2e1c2;
+            font-family: 'Georgia', serif;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #9a3412;
+            font-family: 'Georgia', serif;
+        }
+        .stButton>button {
+            background-color: #ba4a00;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.5em 1em;
+        }
+        .stDownloadButton button {
+            background-color: #1b5e20;
+            color: white;
+        }
+        .reportview-container .markdown-text-container {
+            padding-top: 2rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
-# --- Custom Styling ---
-with open("NovaFi.png", "rb") as f:
-    logo_bytes = f.read()
+# --- Page Configuration ---
+st.set_page_config(page_title="NovaFi | Financial Insights Dashboard", layout="wide")
 
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600&display=swap');
-
-    html, body, [class*="css"]  {
-        font-family: 'Quicksand', sans-serif;
-        background-color: #fef8f2;
-        color: #3b2f2f;
-    }
-
-    .stApp {
-        padding: 2rem;
-    }
-
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.image(logo_bytes, width=250)
-st.title("✨ NovaFi | Financial Insights Dashboard")
+# --- Logo and Title ---
+col1, col2 = st.columns([1, 8])
+with col1:
+    st.image("NovaFi.png", width=150)
+with col2:
+    st.title("✨ NovaFi | Financial Insights Dashboard")
 
 # --- File Upload ---
-uploaded_files = st.file_uploader(
-    "Upload your financial statements (GL, P&L, BS - Excel format)",
-    type=["xlsx"],
-    accept_multiple_files=True
-)
+st.subheader("📂 Upload Your Financial Statements")
+st.caption("Upload your financial statements (GL, P&L, BS - Excel format)")
+uploaded_files = st.file_uploader("Upload GL, P&L, or Balance Sheet files", type=["xlsx"], accept_multiple_files=True)
 
 gl_data = pd.DataFrame()
 pnl_data = pd.DataFrame()
@@ -120,14 +125,13 @@ def calculate_kpis(gl_data, pnl_data, bs_data):
 if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
     kpis = calculate_kpis(gl_data, pnl_data, bs_data)
 
-    st.subheader("📈 Key Financial Metrics")
+    st.subheader("📊 Key Financial Metrics")
     for metric, value in kpis.items():
         if "Margin" in metric or "Ratio" in metric or "Return" in metric:
             st.metric(metric, f"{value:.2%}")
         else:
             st.metric(metric, f"${value:,.2f}")
 
-    # --- Export KPIs ---
     @st.cache_data
     def export_kpis_to_excel(kpis):
         df = pd.DataFrame(kpis.items(), columns=["Metric", "Value"])
@@ -138,17 +142,18 @@ if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
 
     kpi_excel = export_kpis_to_excel(kpis)
     st.download_button(
-        label="📥 Download KPI Report (Excel)",
+        label="📥 Download KPI Report",
         data=kpi_excel,
         file_name="financial_kpis.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
+    # --- PDF Summary Report ---
     def generate_pdf_summary(kpis):
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", size=14)
-        pdf.cell(200, 10, txt="Financial KPI Summary Report", ln=1, align='C')
+        pdf.cell(200, 10, txt="NovaFi KPI Summary Report", ln=1, align='C')
         pdf.set_font("Arial", size=12)
         pdf.ln(10)
 
@@ -161,36 +166,12 @@ if not gl_data.empty or not pnl_data.empty or not bs_data.empty:
 
     kpi_pdf = generate_pdf_summary(kpis)
     st.download_button(
-        label="📥 Download KPI Summary (PDF)",
+        label="📄 Download KPI Report (PDF)",
         data=kpi_pdf,
-        file_name="kpi_summary.pdf",
+        file_name="financial_kpis.pdf",
         mime="application/pdf"
     )
 
-    # --- GPT Q&A ---
-    api_key = st.secrets["OPENAI_API_KEY"] if "OPENAI_API_KEY" in st.secrets else os.getenv("OPENAI_API_KEY")
-
-    if api_key:
-        openai.api_key = api_key
-        st.subheader("💬 Ask a question about your financial KPIs")
-        user_question = st.text_input("Enter your question:")
-
-        if user_question:
-            try:
-                prompt = "You are a financial analyst. Based on the following KPI data, answer the user's question:\n"
-                for metric, value in kpis.items():
-                    prompt += f"{metric}: {value}\n"
-                prompt += f"\nQuestion: {user_question}\nAnswer:"
-
-                response = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                answer = response['choices'][0]['message']['content']
-                st.success(answer)
-            except Exception as e:
-                st.error(f"❌ GPT Error: {e}")
-    else:
-        st.warning("🔑 OpenAI API key not found. Please set it in .streamlit/secrets.toml or environment variable.")
 else:
     st.info("📤 Upload one or more Excel files (GL, P&L, or BS) to begin analysis.")
+
