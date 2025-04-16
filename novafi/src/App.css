@@ -1,0 +1,56 @@
+body {
+  margin: 0;
+  font-family: 'Georgia', serif;
+  background-color: #f8e4c3;
+  color: #264653;
+}
+
+.app {
+  text-align: center;
+  padding: 2rem;
+}
+
+.header {
+  background-color: #f8e4c3;
+  padding: 1rem;
+  border-bottom: 5px solid #cc5500;
+}
+
+.logo {
+  width: 140px;
+  height: auto;
+  margin-bottom: 1rem;
+}
+
+.title {
+  font-size: 3rem;
+  color: #cc5500;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 1.2rem;
+  color: #2a9d8f;
+  margin-top: 0.5rem;
+}
+
+.main-content {
+  padding-top: 2rem;
+}
+
+.cta-button {
+  margin-top: 2rem;
+  background-color: #cc5500;
+  color: #fffbe6;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.cta-button:hover {
+  background-color: #a64200;
+}
